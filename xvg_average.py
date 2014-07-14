@@ -23,7 +23,7 @@ git: https://github.com/jhelie/xvg_average
 
 [ DESCRIPTION ]
  
-This script calculate the average of data contained in several xvg-like files.
+This script calculate the average of data contained in several xvg files.
 
 The legend associated to the columns are used to identify the columns that should
 be averaged together between the files.
@@ -46,7 +46,21 @@ The following python modules are needed :
     -> --comments @,#,!
  
 3. Missing values (or values to be ignored) should be set to the string "nan" in your
-   xvg files.
+   xvg files - they will be ignored when calculating averages.
+   Once the average data has been calculated you can choose to ouput nan values as a
+   number so that basic programs (e.g. xmgrace) can read and plot them. By default this
+   is not the case and nan values are written as "nan".
+   
+   If you do choose to replace them remember that depending on the data you're working
+   with "0" might be information and not the best value to set your nan to.
+
+4. Weighted averaged can be calculated. The weight to associate to each xvg file must be
+   entered as a comment in each xvg file as follows (without the quotation mark):
+    '#  -> weight = weight_value'
+   
+   You must respect the number and position of spaces but note that any of the symbols
+   defined by the --comments can be used instead of '#'.
+   
 
 [ USAGE ]
 
@@ -57,6 +71,7 @@ Option	      Default  	Description
 --skip		1	: only outputs every X lines of the averaged xvg
 --smooth	1	: calculate rolling average
 --comments	@,#	: lines starting with these characters will be considered as comment
+--nan			: replace 'nan' values 
 
 Other options
 -----------------------------------------------------
@@ -71,6 +86,7 @@ parser.add_argument('-o', nargs=1, dest='output_file', default=["average"], help
 parser.add_argument('--skip', nargs=1, dest='nb_skipping', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--smooth', nargs=1, dest='nb_smoothing', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
+parser.add_argument('--nan', nargs=1, dest='nan2num', default=["no"], help=argparse.SUPPRESS)
 
 #other options
 parser.add_argument('--version', action='version', version='%(prog)s v' + version_nb, help=argparse.SUPPRESS)
@@ -84,6 +100,7 @@ args = parser.parse_args()
 args.output_file = args.output_file[0]
 args.nb_skipping = args.nb_skipping[0]
 args.nb_smoothing = args.nb_smoothing[0]
+args.nan2num = args.nan2num[0]
 
 args.comments = args.comments[0].split(',')
 
@@ -121,6 +138,13 @@ if args.nb_smoothing < 1:
 	print "Error: --smooth must be greater than 0."
 	sys.exit(1)
 
+if args.nan2num != "no":
+	try:
+		args.nan2num = float(args.nan2num)
+	except:
+		print "Error: --nan should be set to a float value."
+		sys.exit(1)
+
 ##########################################################################################
 # FUNCTIONS DEFINITIONS
 ##########################################################################################
@@ -138,8 +162,10 @@ def load_xvg():															#DONE
 	global columns_names
 	global label_xaxis
 	global label_yaxis
+	global weight_sum
 	nb_rows = 0
 	nb_cols = 0
+	weight_sum = 0
 	label_xaxis = "x axis"
 	label_yaxis = "y axis"
 	files_columns = {}
@@ -152,72 +178,87 @@ def load_xvg():															#DONE
 		filename = args.xvgfilenames[f_index]
 		tmp_nb_rows_to_skip = 0
 		files_columns[filename] = {"leg2col": {}}
+		files_columns[filename]["weight"] = 1
+		#get file content
 		with open(filename) as f:
 			lines = f.readlines()
-			#determine legends and nb of lines to skip
-			for l_index in range(0,len(lines)):
-				line = lines[l_index]
-				if line[-1] == '\n':
-					line = line[:-1]
-				if line[0] in args.comments:
-					tmp_nb_rows_to_skip += 1
-					if "legend \"" in line:
-						try:
-							tmp_col = int(int(line.split("@ s")[1].split(" ")[0]) + 1)
-							tmp_name = line.split("legend \"")[1][:-1]
-							files_columns[filename]["leg2col"][tmp_name] = tmp_col
-						except:
-							print "\nError: unexpected data format in line " + str(l_index) + " in file " + str(filename) + "."
+		
+		#determine legends and nb of lines to skip
+		for l_index in range(0,len(lines)):
+			line = lines[l_index]
+			if line[-1] == '\n':
+				line = line[:-1]
+			if line[0] in args.comments:
+				tmp_nb_rows_to_skip += 1
+				if "legend \"" in line:
+					try:
+						tmp_col = int(int(line.split("@ s")[1].split(" ")[0]) + 1)
+						tmp_name = line.split("legend \"")[1][:-1]
+						files_columns[filename]["leg2col"][tmp_name] = tmp_col
+					except:
+						print "\nError: unexpected data format in line " + str(l_index) + " in file " + str(filename) + "."
+						print " -> " + str(line)
+						sys.exit(1)
+					if f_index == 0:
+						if tmp_name in columns_names:
+							print "znError: the legend '" + str(tmp_name) + "' is used twice in file " + str(filename) + "."
+							sys.exit(1)
+						else:
+							columns_names.append(tmp_name)
+					else:
+						if tmp_name not in columns_names:
+							print "\nError: legend '" + str(tmp_name) + "' is present in file " + str(filename) + " but not in " + str(args.xvgfilenames[0]) + "."
+							sys.exit(1)
+				if "xaxis" in line and  "label " in line:
+					label_xaxis = line.split("label ")[1]
+				if "yaxis" in line and  "label " in line:
+					label_yaxis = line.split("label ")[1]
+				if "weight" in line:
+					if "-> weight = " in line:
+						files_columns[filename]["weight"] = float(line.split("-> weight = ")[1])
+						if files_columns[filename]["weight"] < 0:
+							print "\nError: the weight in file " + str(filename) + " should be a positive number."
 							print " -> " + str(line)
 							sys.exit(1)
-						if f_index == 0:
-							if tmp_name in columns_names:
-								print "znError: the legend '" + str(tmp_name) + "' is used twice in file " + str(filename) + "."
-								sys.exit(1)
-							else:
-								columns_names.append(tmp_name)
-						else:
-							if tmp_name not in columns_names:
-								print "\nError: legend '" + str(tmp_name) + "' is present in file " + str(filename) + " but not in " + str(args.xvgfilenames[0]) + "."
-								sys.exit(1)
-					if "xaxis" in line and  "label " in line:
-						label_xaxis = line.split("label ")[1]
-					if "yaxis" in line and  "label " in line:
-						label_yaxis = line.split("label ")[1]
-						
-			#get data
-			files_columns[filename]["data"] = numpy.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
-			
-			#check that each file has the same number of data rows
-			if f_index == 0:
-				nb_rows = numpy.shape(files_columns[filename]["data"])[0]
-				if nb_rows < args.nb_smoothing:
-					print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --smooth specified (" + str(args.nb_smoothing) + ")."
-					sys.exit(1)
-				if nb_rows < args.nb_skipping:
-					print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --skip specified (" + str(args.nb_skipping) + ")."
-					sys.exit(1)
-			else:
-				if numpy.shape(files_columns[filename]["data"])[0] != nb_rows:
-					print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
-					sys.exit(1)
+					else:
+						print "\nWarning: keyword 'weight' found in the comments of file " + str(filename) + ", but weight not read in as the format '-> weight = ' wasn't found."
 		
-			#check that each file has the same number of columns
-			if f_index == 0:
-				nb_cols = numpy.shape(files_columns[filename]["data"])[1]
-			else:
-				if numpy.shape(files_columns[filename]["data"])[1] != nb_cols:
-					print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
-					sys.exit(1)
-				
-			#check that each file has the same first column
-			if f_index == 0:
-				first_col = files_columns[filename]["data"][:,0]
-			else:
-				if not numpy.array_equal(files_columns[filename]["data"][:,0],first_col):
-					print "\nError: the first column of file " + str(filename) + " is different than that of " + str(args.xvgfilenames[0]) + "."
-					sys.exit(1)
+		#get data
+		files_columns[filename]["data"] = numpy.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
+		
+		#check that each file has the same number of data rows
+		if f_index == 0:
+			nb_rows = numpy.shape(files_columns[filename]["data"])[0]
+			if nb_rows < args.nb_smoothing:
+				print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --smooth specified (" + str(args.nb_smoothing) + ")."
+				sys.exit(1)
+			if nb_rows < args.nb_skipping:
+				print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --skip specified (" + str(args.nb_skipping) + ")."
+				sys.exit(1)
+		else:
+			if numpy.shape(files_columns[filename]["data"])[0] != nb_rows:
+				print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
+				sys.exit(1)
 	
+		#check that each file has the same number of columns
+		if f_index == 0:
+			nb_cols = numpy.shape(files_columns[filename]["data"])[1]
+		else:
+			if numpy.shape(files_columns[filename]["data"])[1] != nb_cols:
+				print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
+				sys.exit(1)
+			
+		#check that each file has the same first column
+		if f_index == 0:
+			first_col = files_columns[filename]["data"][:,0]
+		else:
+			if not numpy.array_equal(files_columns[filename]["data"][:,0],first_col):
+				print "\nError: the first column of file " + str(filename) + " is different than that of " + str(args.xvgfilenames[0]) + "."
+				sys.exit(1)
+		
+		#update weight sum
+		weight_sum += files_columns[filename]["weight"]
+
 	return
 
 #=========================================================================================
@@ -229,7 +270,7 @@ def rolling_avg(loc_list):												#DONE
 	loc_arr = numpy.asarray(loc_list)
 	shape = (loc_arr.shape[-1]-args.nb_smoothing+1,args.nb_smoothing)
 	strides = (loc_arr.strides[-1],loc_arr.strides[-1])   	
-	return numpy.average(numpy.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
+	return scipy.stats.nanmean(numpy.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
 def calculate_avg():													#DONE
 
 	global data_avg
@@ -244,14 +285,24 @@ def calculate_avg():													#DONE
 	data_avg[:,0] = first_col
 	for col_index in range(1, nb_cols):
 		col_name = columns_names[col_index-1]
-		tmp_col_avg = files_columns[args.xvgfilenames[0]]["data"][:,files_columns[args.xvgfilenames[0]]["leg2col"][col_name]:files_columns[args.xvgfilenames[0]]["leg2col"][col_name]+1]
+		#initialise average with first file
+		filename = args.xvgfilenames[0]
+		tmp_col_nb = files_columns[args.xvgfilenames[0]]["leg2col"][col_name]
+		tmp_col_avg = files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] / float(weight_sum)
+		
+		#add columns of following files
 		for f_index in range(1,len(args.xvgfilenames)):
-			tmp_col_avg = numpy.concatenate([tmp_col_avg,files_columns[args.xvgfilenames[f_index]]["data"][:,files_columns[args.xvgfilenames[f_index]]["leg2col"][col_name]:files_columns[args.xvgfilenames[f_index]]["leg2col"][col_name]+1]], axis = 1)	
+			filename = args.xvgfilenames[f_index]
+			tmp_col_nb = files_columns[filename]["leg2col"][col_name]
+			tmp_col_avg = numpy.concatenate([tmp_col_avg,files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] / float(weight_sum)], axis = 1)	
+		
+		#calculate average taking into account "nan"
 		if len(args.xvgfilenames) > 1:
 			data_avg[:,col_index] =  scipy.stats.nanmean(tmp_col_avg, axis = 1)
-			data_std[:,col_index-1] = scipy.stats.nanstd(tmp_col_avg, axis = 1)
+			data_std[:,col_index-1] = scipy.stats.nanstd(tmp_col_avg, axis = 1, bias = True)
 		else:
-			data_avg[:,col_index] = tmp_col_avg
+			data_avg[:,col_index] = tmp_col_avg[:,0]
+			
 	
 	#update by smoothing
 	#-------------------
@@ -273,6 +324,12 @@ def calculate_avg():													#DONE
 		nb_rows = len(rows_to_keep)
 		data_avg = data_avg[rows_to_keep,:]
 		data_std = data_std[rows_to_keep,:]
+	
+	#replace nan values if necessary
+	#-------------------------------
+	if args.nan2num != "no":
+		data_avg[numpy.isnan(data_avg)] = args.nan2num
+		data_std[numpy.isnan(data_std)] = args.nan2num
 	
 	return
 
