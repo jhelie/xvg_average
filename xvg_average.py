@@ -56,10 +56,10 @@ The following python modules are needed :
 
 4. Weighted averaged can be calculated. The weight to associate to each xvg file must be
    entered as a comment in each xvg file as follows (without the quotation mark):
-    '#  -> weight = weight_value'
+    '-> weight = weight_value'
    
-   You must respect the number and position of spaces but note that any of the symbols
-   defined by the --comments can be used instead of '#'.
+   You must respect the number and position of spaces but note that the above syntax can
+   be precessed by any of the symbols defined by the --comments option.
    
 
 [ USAGE ]
@@ -351,6 +351,8 @@ def write_xvg():														#DONE
 	output_xvg.write("# - files: " + str(tmp_files[1:]) + "\n")
 	output_xvg.write("# - skipping: " + str(args.nb_skipping) + " frames\n")
 	output_xvg.write("# - smoothing: " + str(args.nb_smoothing) + " frames\n")
+	if weight_sum > len(args.xvgfilenames):
+		output_xvg.write("# -> weight = " + str(weight_sum) + "\n")
 	
 	#xvg metadata
 	output_xvg.write("@ title \"Average xvg\"\n")
