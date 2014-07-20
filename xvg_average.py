@@ -291,8 +291,8 @@ def calculate_avg():													#DONE
 		col_name = columns_names[col_index-1]
 		#initialise average with first file
 		filename = args.xvgfilenames[0]
-		tmp_col_nb = files_columns[args.xvgfilenames[0]]["leg2col"][col_name]
-		tmp_col_avg = files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] / float(weight_sum)
+		tmp_col_nb = files_columns[filename]["leg2col"][col_name]
+		tmp_col_avg = files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] * len(args.xvgfilenames) / float(weight_sum)
 		
 		#add columns of following files
 		for f_index in range(1,len(args.xvgfilenames)):
@@ -303,6 +303,7 @@ def calculate_avg():													#DONE
 		#calculate average taking into account "nan"
 		if len(args.xvgfilenames) > 1:
 			data_avg[:,col_index] =  scipy.stats.nanmean(tmp_col_avg, axis = 1)
+						
 			if len(args.xvgfilenames) > 1:
 				data_std[:,col_index-1] = scipy.stats.nanstd(tmp_col_avg, axis = 1, bias = True)
 		else:
