@@ -25,6 +25,8 @@ git: https://github.com/jhelie/xvg_average
  
 This script calculate the average of data contained in several xvg files.
 
+It also calculates the (unbiased) standard deviation.
+
 The legend associated to the columns are used to identify the columns that should
 be averaged together between the files.
 
@@ -113,9 +115,9 @@ args.comments = args.comments[0].split(',')
 
 #generic science modules
 try:
-	import numpy
+	import numpy as np
 except:
-	print "Error: you need to install the numpy module."
+	print "Error: you need to install the np module."
 	sys.exit(1)
 try:
 	import scipy
@@ -227,11 +229,11 @@ def load_xvg():															#DONE
 						print "\nWarning: keyword 'weight' found in the comments of file " + str(filename) + ", but weight not read in as the format '-> weight = ' wasn't found."
 		
 		#get data
-		files_columns[filename]["data"] = numpy.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
+		files_columns[filename]["data"] = np.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
 		
 		#check that each file has the same number of data rows
 		if f_index == 0:
-			nb_rows = numpy.shape(files_columns[filename]["data"])[0]
+			nb_rows = np.shape(files_columns[filename]["data"])[0]
 			if nb_rows < args.nb_smoothing:
 				print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --smooth specified (" + str(args.nb_smoothing) + ")."
 				sys.exit(1)
@@ -239,23 +241,23 @@ def load_xvg():															#DONE
 				print "Error: the number of data rows (" + str(nb_rows) + ") is smaller than the option --skip specified (" + str(args.nb_skipping) + ")."
 				sys.exit(1)
 		else:
-			if numpy.shape(files_columns[filename]["data"])[0] != nb_rows:
-				print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
+			if np.shape(files_columns[filename]["data"])[0] != nb_rows:
+				print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
 				sys.exit(1)
 	
 		#check that each file has the same number of columns
 		if f_index == 0:
-			nb_cols = numpy.shape(files_columns[filename]["data"])[1]
+			nb_cols = np.shape(files_columns[filename]["data"])[1]
 		else:
-			if numpy.shape(files_columns[filename]["data"])[1] != nb_cols:
-				print "Error: file " + str(filename) + " has " + str(numpy.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
+			if np.shape(files_columns[filename]["data"])[1] != nb_cols:
+				print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
 				sys.exit(1)
 			
 		#check that each file has the same first column
 		if f_index == 0:
 			first_col = files_columns[filename]["data"][:,0]
 		else:
-			if not numpy.array_equal(files_columns[filename]["data"][:,0],first_col):
+			if not np.array_equal(files_columns[filename]["data"][:,0],first_col):
 				print "\nError: the first column of file " + str(filename) + " is different than that of " + str(args.xvgfilenames[0]) + "."
 				sys.exit(1)
 		
@@ -270,10 +272,10 @@ def load_xvg():															#DONE
 
 def rolling_avg(loc_list):												#DONE
 
-	loc_arr = numpy.asarray(loc_list)
+	loc_arr = np.asarray(loc_list)
 	shape = (loc_arr.shape[-1]-args.nb_smoothing+1,args.nb_smoothing)
 	strides = (loc_arr.strides[-1],loc_arr.strides[-1])   	
-	return scipy.stats.nanmean(numpy.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
+	return scipy.stats.nanmean(np.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
 def calculate_avg():													#DONE
 
 	global data_avg
@@ -283,9 +285,9 @@ def calculate_avg():													#DONE
 	
 	#calculate raw average
 	#---------------------
-	data_avg = numpy.zeros((nb_rows,nb_cols))
+	data_avg = np.zeros((nb_rows,nb_cols))
 	if len(args.xvgfilenames) > 1:
-		data_std = numpy.zeros((nb_rows,nb_cols-1))
+		data_std = np.zeros((nb_rows,nb_cols-1))
 	data_avg[:,0] = first_col
 	for col_index in range(1, nb_cols):
 		col_name = columns_names[col_index-1]
@@ -298,14 +300,33 @@ def calculate_avg():													#DONE
 		for f_index in range(1,len(args.xvgfilenames)):
 			filename = args.xvgfilenames[f_index]
 			tmp_col_nb = files_columns[filename]["leg2col"][col_name]
-			tmp_col_avg = numpy.concatenate([tmp_col_avg,files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] * len(args.xvgfilenames) / float(weight_sum)], axis = 1)	
-		
-		#calculate average taking into account "nan"
+			tmp_col_avg = np.concatenate([tmp_col_avg,files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] * len(args.xvgfilenames) / float(weight_sum)], axis = 1)	
+				
 		if len(args.xvgfilenames) > 1:
+
+			#calculate weighted average taking into account "nan"
+			#----------------------------------------------------
 			data_avg[:,col_index] =  scipy.stats.nanmean(tmp_col_avg, axis = 1)
 						
-			if len(args.xvgfilenames) > 1:
-				data_std[:,col_index-1] = scipy.stats.nanstd(tmp_col_avg, axis = 1, bias = True)
+			#calculate unbiased weighted std dev taking into account "nan"
+			#-------------------------------------------------------------
+			#initialise average with first file
+			filename = args.xvgfilenames[0]
+			tmp_col_nb = files_columns[filename]["leg2col"][col_name]
+			tmp_col_std = files_columns[filename]["weight"] * (files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] - data_avg[:,col_index:col_index+1])**2
+			tmp_weigh2_sum = files_columns[filename]["weight"]**2
+			
+			#add columns of following files
+			for f_index in range(1,len(args.xvgfilenames)):
+				filename = args.xvgfilenames[f_index]
+				tmp_col_nb = files_columns[filename]["leg2col"][col_name]
+				tmp_col_std = np.concatenate([tmp_col_std, files_columns[filename]["weight"] * (files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] - data_avg[:,col_index:col_index+1])**2], axis = 1)	
+				tmp_weigh2_sum += files_columns[filename]["weight"]**2
+						
+			#calculate unbiased standard deviation as defined on wikipedia: https://en.wikipedia.org/wiki/Weighted_variance#Weighted_sample_variance
+			tmp_col_std = np.sqrt(weight_sum / float(weight_sum**2 - tmp_weigh2_sum) * scipy.nansum(tmp_col_std, axis = 1))
+			data_std[:,col_index-1] = tmp_col_std
+
 		else:
 			data_avg[:,col_index] = tmp_col_avg[:,0]
 			
@@ -313,14 +334,14 @@ def calculate_avg():													#DONE
 	#-------------------
 	if args.nb_smoothing > 1:
 		nb_rows = nb_rows - args.nb_smoothing + 1
-		tmp_data_avg_smoothed = numpy.zeros((nb_rows,nb_cols))
+		tmp_data_avg_smoothed = np.zeros((nb_rows,nb_cols))
 		if len(args.xvgfilenames) > 1:
-			tmp_data_std_smoothed = numpy.zeros((nb_rows,nb_cols-1))
-		tmp_data_avg_smoothed[:,0] = numpy.transpose(rolling_avg(numpy.transpose(data_avg[:,0])))
+			tmp_data_std_smoothed = np.zeros((nb_rows,nb_cols-1))
+		tmp_data_avg_smoothed[:,0] = np.transpose(rolling_avg(np.transpose(data_avg[:,0])))
 		for col_index in range(1, nb_cols):
-			tmp_data_avg_smoothed[:,col_index] = numpy.transpose(rolling_avg(numpy.transpose(data_avg[:,col_index])))
+			tmp_data_avg_smoothed[:,col_index] = np.transpose(rolling_avg(np.transpose(data_avg[:,col_index])))
 			if len(args.xvgfilenames) > 1:
-				tmp_data_std_smoothed[:,col_index-1] = numpy.transpose(rolling_avg(numpy.transpose(data_std[:,col_index-1])))
+				tmp_data_std_smoothed[:,col_index-1] = np.transpose(rolling_avg(np.transpose(data_std[:,col_index-1])))
 		data_avg = tmp_data_avg_smoothed
 		if len(args.xvgfilenames) > 1:
 			data_std = tmp_data_std_smoothed
@@ -337,9 +358,9 @@ def calculate_avg():													#DONE
 	#replace nan values if necessary
 	#-------------------------------
 	if args.nan2num != "no":
-		data_avg[numpy.isnan(data_avg)] = args.nan2num
+		data_avg[np.isnan(data_avg)] = args.nan2num
 		if len(args.xvgfilenames) > 1:
-			data_std[numpy.isnan(data_std)] = args.nan2num
+			data_std[np.isnan(data_std)] = args.nan2num
 	
 	return
 
