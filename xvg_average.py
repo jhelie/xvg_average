@@ -284,7 +284,7 @@ def calculate_avg():													#DONE
 	#calculate raw average
 	#---------------------
 	data_avg = numpy.zeros((nb_rows,nb_cols))
-	if weight_sum == len(args.xvgfilenames):
+	if len(args.xvgfilenames) > 1:
 		data_std = numpy.zeros((nb_rows,nb_cols-1))
 	data_avg[:,0] = first_col
 	for col_index in range(1, nb_cols):
@@ -303,7 +303,7 @@ def calculate_avg():													#DONE
 		#calculate average taking into account "nan"
 		if len(args.xvgfilenames) > 1:
 			data_avg[:,col_index] =  scipy.stats.nanmean(tmp_col_avg, axis = 1)
-			if weight_sum == len(args.xvgfilenames):
+			if len(args.xvgfilenames) > 1:
 				data_std[:,col_index-1] = scipy.stats.nanstd(tmp_col_avg, axis = 1, bias = True)
 		else:
 			data_avg[:,col_index] = tmp_col_avg[:,0]
@@ -313,15 +313,15 @@ def calculate_avg():													#DONE
 	if args.nb_smoothing > 1:
 		nb_rows = nb_rows - args.nb_smoothing + 1
 		tmp_data_avg_smoothed = numpy.zeros((nb_rows,nb_cols))
-		if weight_sum == len(args.xvgfilenames):
+		if len(args.xvgfilenames) > 1:
 			tmp_data_std_smoothed = numpy.zeros((nb_rows,nb_cols-1))
 		tmp_data_avg_smoothed[:,0] = numpy.transpose(rolling_avg(numpy.transpose(data_avg[:,0])))
 		for col_index in range(1, nb_cols):
 			tmp_data_avg_smoothed[:,col_index] = numpy.transpose(rolling_avg(numpy.transpose(data_avg[:,col_index])))
-			if weight_sum == len(args.xvgfilenames):
+			if len(args.xvgfilenames) > 1:
 				tmp_data_std_smoothed[:,col_index-1] = numpy.transpose(rolling_avg(numpy.transpose(data_std[:,col_index-1])))
 		data_avg = tmp_data_avg_smoothed
-		if weight_sum == len(args.xvgfilenames):
+		if len(args.xvgfilenames) > 1:
 			data_std = tmp_data_std_smoothed
 	
 	#update by skipping
@@ -330,14 +330,14 @@ def calculate_avg():													#DONE
 		rows_to_keep = [r for r in range(0,nb_rows) if r%args.nb_skipping ==0]
 		nb_rows = len(rows_to_keep)
 		data_avg = data_avg[rows_to_keep,:]
-		if weight_sum == len(args.xvgfilenames):
+		if len(args.xvgfilenames) > 1:
 			data_std = data_std[rows_to_keep,:]
 	
 	#replace nan values if necessary
 	#-------------------------------
 	if args.nan2num != "no":
 		data_avg[numpy.isnan(data_avg)] = args.nan2num
-		if weight_sum == len(args.xvgfilenames):
+		if len(args.xvgfilenames) > 1:
 			data_std[numpy.isnan(data_std)] = args.nan2num
 	
 	return
@@ -374,7 +374,7 @@ def write_xvg():														#DONE
 	output_xvg.write("@ legend box on\n")
 	output_xvg.write("@ legend loctype view\n")
 	output_xvg.write("@ legend 0.98, 0.8\n")
-	if weight_sum == len(args.xvgfilenames):
+	if len(args.xvgfilenames) > 1:
 		output_xvg.write("@ legend length " + str((nb_cols-1)*2) + "\n")
 		for col_index in range(0,nb_cols-1):
 			output_xvg.write("@ s" + str(col_index) + " legend \"" + str(columns_names[col_index]) + " (avg)\"\n")
@@ -392,7 +392,7 @@ def write_xvg():														#DONE
 		for col_index in range(1,nb_cols):
 			results += "	" + "{:.6e}".format(data_avg[r,col_index])
 		#std
-		if weight_sum == len(args.xvgfilenames):
+		if len(args.xvgfilenames) > 1:
 			for col_index in range(0,nb_cols-1):
 				results += "	" + "{:.6e}".format(data_std[r,col_index])
 		output_xvg.write(results + "\n")		
