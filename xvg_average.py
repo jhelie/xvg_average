@@ -12,7 +12,7 @@ import os.path
 #=========================================================================================
 # create parser
 #=========================================================================================
-version_nb = "0.1.0"
+version_nb = "0.1.0-dev0"
 parser = argparse.ArgumentParser(prog = 'xvg_average', usage='', add_help = False, formatter_class = argparse.RawDescriptionHelpFormatter, description =\
 '''
 **********************************************
@@ -91,6 +91,7 @@ parser.add_argument('-o', nargs=1, dest='output_file', default=["average"], help
 parser.add_argument('--skip', nargs=1, dest='nb_skipping', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--smooth', nargs=1, dest='nb_smoothing', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
+parser.add_argument('--variance', dest='variance', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('--nan', nargs=1, dest='nan2num', default=["no"], help=argparse.SUPPRESS)
 
 #other options
