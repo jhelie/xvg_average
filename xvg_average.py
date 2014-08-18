@@ -76,7 +76,7 @@ Option	      Default  	Description
 --skip		1	: only outputs every X lines of the averaged xvg
 --smooth	1	: calculate rolling average
 --comments	@,#	: lines starting with these characters will be considered as comment
---nan			: replace 'nan' values 
+--nan			: replace 'nan' values by argument of this option
 
 Other options
 -----------------------------------------------------
@@ -91,7 +91,6 @@ parser.add_argument('-o', nargs=1, dest='output_file', default=["average"], help
 parser.add_argument('--skip', nargs=1, dest='nb_skipping', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--smooth', nargs=1, dest='nb_smoothing', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
-parser.add_argument('--variance', dest='variance', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('--nan', nargs=1, dest='nan2num', default=["no"], help=argparse.SUPPRESS)
 
 #other options
@@ -191,7 +190,9 @@ def load_xvg():															#DONE
 		
 		#determine legends and nb of lines to skip
 		for l_index in range(0,len(lines)):
+			
 			line = lines[l_index]
+									
 			if line[-1] == '\n':
 				line = line[:-1]
 			if line[0] in args.comments:
@@ -207,7 +208,7 @@ def load_xvg():															#DONE
 						sys.exit(1)
 					if f_index == 0:
 						if tmp_name in columns_names:
-							print "znError: the legend '" + str(tmp_name) + "' is used twice in file " + str(filename) + "."
+							print "\nError: the legend '" + str(tmp_name) + "' is used twice in file " + str(filename) + "."
 							sys.exit(1)
 						else:
 							columns_names.append(tmp_name)
@@ -231,7 +232,7 @@ def load_xvg():															#DONE
 		
 		#get data
 		files_columns[filename]["data"] = np.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
-		
+						
 		#check that each file has the same number of data rows
 		if f_index == 0:
 			nb_rows = np.shape(files_columns[filename]["data"])[0]
@@ -296,7 +297,7 @@ def calculate_avg():													#DONE
 		filename = args.xvgfilenames[0]
 		tmp_col_nb = files_columns[filename]["leg2col"][col_name]
 		tmp_col_avg = files_columns[filename]["data"][:,tmp_col_nb:tmp_col_nb+1] * files_columns[filename]["weight"] * len(args.xvgfilenames) / float(weight_sum)
-		
+				
 		#add columns of following files
 		for f_index in range(1,len(args.xvgfilenames)):
 			filename = args.xvgfilenames[f_index]
