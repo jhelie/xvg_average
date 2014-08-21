@@ -277,7 +277,7 @@ def rolling_avg(loc_list):												#DONE
 	loc_arr = np.asarray(loc_list)
 	shape = (loc_arr.shape[-1]-args.nb_smoothing+1,args.nb_smoothing)
 	strides = (loc_arr.strides[-1],loc_arr.strides[-1])   	
-	return scipy.stats.nanmean(np.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
+	return scipy.stats.nanmean(np.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1), scipy.stats.nanstd(np.lib.stride_tricks.as_strided(loc_arr, shape=shape, strides=strides), -1)
 def calculate_avg():													#DONE
 
 	global data_avg
@@ -337,16 +337,22 @@ def calculate_avg():													#DONE
 	if args.nb_smoothing > 1:
 		nb_rows = nb_rows - args.nb_smoothing + 1
 		tmp_data_avg_smoothed = np.zeros((nb_rows,nb_cols))
-		if len(args.xvgfilenames) > 1:
-			tmp_data_std_smoothed = np.zeros((nb_rows,nb_cols-1))
-		tmp_data_avg_smoothed[:,0] = np.transpose(rolling_avg(np.transpose(data_avg[:,0])))
+		tmp_data_std_smoothed = np.zeros((nb_rows,nb_cols-1))
+		tmp_data_avg_smoothed[:,0] = np.transpose(rolling_avg(np.transpose(data_avg[:,0]))[0])
+
 		for col_index in range(1, nb_cols):
-			tmp_data_avg_smoothed[:,col_index] = np.transpose(rolling_avg(np.transpose(data_avg[:,col_index])))
-			if len(args.xvgfilenames) > 1:
+			tmp_avg, tmp_std =  rolling_avg(np.transpose(data_avg[:,col_index]))
+			tmp_data_avg_smoothed[:,col_index] = np.transpose(tmp_avg)
+			
+			#if one file the std correspond to the fluctuation around the smooth value
+			if len(args.xvgfilenames) == 1:
+				tmp_data_std_smoothed[:,col_index-1] = np.transpose(tmp_std)
+			#if several files the std correspond to the smoothing of the std obtained when calculating the files average
+			else:
 				tmp_data_std_smoothed[:,col_index-1] = np.transpose(rolling_avg(np.transpose(data_std[:,col_index-1])))
+		
 		data_avg = tmp_data_avg_smoothed
-		if len(args.xvgfilenames) > 1:
-			data_std = tmp_data_std_smoothed
+		data_std = tmp_data_std_smoothed
 	
 	#update by skipping
 	#------------------
@@ -398,16 +404,11 @@ def write_xvg():														#DONE
 	output_xvg.write("@ legend box on\n")
 	output_xvg.write("@ legend loctype view\n")
 	output_xvg.write("@ legend 0.98, 0.8\n")
-	if len(args.xvgfilenames) > 1:
-		output_xvg.write("@ legend length " + str((nb_cols-1)*2) + "\n")
-		for col_index in range(0,nb_cols-1):
-			output_xvg.write("@ s" + str(col_index) + " legend \"" + str(columns_names[col_index]) + " (avg)\"\n")
-		for col_index in range(0,nb_cols-1):
-			output_xvg.write("@ s" + str(nb_cols - 1 + col_index) + " legend \"" + str(columns_names[col_index]) + " (std)\"\n")
-	else:
-		output_xvg.write("@ legend length " + str(nb_cols-1) + "\n")
-		for col_index in range(0,nb_cols-1):
-			output_xvg.write("@ s" + str(col_index) + " legend \"" + str(columns_names[col_index]) + "\"\n")
+	output_xvg.write("@ legend length " + str((nb_cols-1)*2) + "\n")
+	for col_index in range(0,nb_cols-1):
+		output_xvg.write("@ s" + str(col_index) + " legend \"" + str(columns_names[col_index]) + " (avg)\"\n")
+	for col_index in range(0,nb_cols-1):
+		output_xvg.write("@ s" + str(nb_cols - 1 + col_index) + " legend \"" + str(columns_names[col_index]) + " (std)\"\n")
 	
 	#data
 	for r in range(0, nb_rows):
@@ -416,9 +417,8 @@ def write_xvg():														#DONE
 		for col_index in range(1,nb_cols):
 			results += "	" + "{:.6e}".format(data_avg[r,col_index])
 		#std
-		if len(args.xvgfilenames) > 1:
-			for col_index in range(0,nb_cols-1):
-				results += "	" + "{:.6e}".format(data_std[r,col_index])
+		for col_index in range(0,nb_cols-1):
+			results += "	" + "{:.6e}".format(data_std[r,col_index])
 		output_xvg.write(results + "\n")		
 	output_xvg.close()	
 	
