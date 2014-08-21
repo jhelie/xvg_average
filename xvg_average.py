@@ -25,7 +25,12 @@ git: https://github.com/jhelie/xvg_average
  
 This script calculate the average of data contained in several xvg files.
 
-It also calculates the (unbiased) standard deviation.
+It also calculates the (unbiased) standard deviation:
+ - if 1 file is supplied and the --smooth option is used the std dev correspond 
+   to the fluctuation around the smoothed average
+ - if several files are supplied the std dev correspond to the std dev obtained
+   when calculating their average (and if --smooth is used it is that std dev
+   which is smoothed)
 
 The legend associated to the columns are used to identify the columns that should
 be averaged together between the files.
