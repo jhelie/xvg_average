@@ -12,7 +12,7 @@ import os.path
 #=========================================================================================
 # create parser
 #=========================================================================================
-version_nb = "0.1.0"
+version_nb = "0.1.1"
 parser = argparse.ArgumentParser(prog = 'xvg_average', usage='', add_help = False, formatter_class = argparse.RawDescriptionHelpFormatter, description =\
 '''
 **********************************************
@@ -82,6 +82,7 @@ Option	      Default  	Description
 --smooth	1	: calculate rolling average
 --comments	@,#	: lines starting with these characters will be considered as comment
 --nan			: replace 'nan' values by argument of this option
+--first			: do NOT require first columns of each files to match (1st file is used, following ones are either extended with '0' or truncated)
 
 Other options
 -----------------------------------------------------
@@ -97,6 +98,7 @@ parser.add_argument('--skip', nargs=1, dest='nb_skipping', default=[1], type=int
 parser.add_argument('--smooth', nargs=1, dest='nb_smoothing', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
 parser.add_argument('--nan', nargs=1, dest='nan2num', default=["no"], help=argparse.SUPPRESS)
+parser.add_argument('--first', dest='first', action='store_true', help=argparse.SUPPRESS)
 
 #other options
 parser.add_argument('--version', action='version', version='%(prog)s v' + version_nb, help=argparse.SUPPRESS)
@@ -238,6 +240,14 @@ def load_xvg():															#DONE
 		#get data
 		files_columns[filename]["data"] = np.loadtxt(filename, skiprows = tmp_nb_rows_to_skip)
 						
+		#check that each file has the same number of columns
+		if f_index == 0:
+			nb_cols = np.shape(files_columns[filename]["data"])[1]
+		else:
+			if np.shape(files_columns[filename]["data"])[1] != nb_cols:
+				print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
+				sys.exit(1)
+		
 		#check that each file has the same number of data rows
 		if f_index == 0:
 			nb_rows = np.shape(files_columns[filename]["data"])[0]
@@ -249,22 +259,23 @@ def load_xvg():															#DONE
 				sys.exit(1)
 		else:
 			if np.shape(files_columns[filename]["data"])[0] != nb_rows:
-				print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
-				sys.exit(1)
+				if args.first:
+					#truncate
+					if np.shape(files_columns[filename]["data"])[0] > nb_rows:
+						files_columns[filename]["data"] = files_columns[filename]["data"][:nb_rows,:]
+					#extend
+					else:
+						files_columns[filename]["data"] = np.vstack((files_columns[filename]["data"], np.zeros((nb_rows-np.shape(files_columns[filename]["data"])[0],nb_cols))))
+				else:
+					print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
+					sys.exit(1)
 	
-		#check that each file has the same number of columns
-		if f_index == 0:
-			nb_cols = np.shape(files_columns[filename]["data"])[1]
-		else:
-			if np.shape(files_columns[filename]["data"])[1] != nb_cols:
-				print "Error: file " + str(filename) + " has " + str(np.shape(files_columns[filename]["data"])[1]) + " data columns, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_cols) + " data columns."
-				sys.exit(1)
 			
 		#check that each file has the same first column
 		if f_index == 0:
 			first_col = files_columns[filename]["data"][:,0]
 		else:
-			if not np.array_equal(files_columns[filename]["data"][:,0],first_col):
+			if not args.first and not np.array_equal(files_columns[filename]["data"][:,0],first_col):
 				print "\nError: the first column of file " + str(filename) + " is different than that of " + str(args.xvgfilenames[0]) + "."
 				sys.exit(1)
 		
