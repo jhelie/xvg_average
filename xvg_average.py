@@ -12,7 +12,7 @@ import os.path
 #=========================================================================================
 # create parser
 #=========================================================================================
-version_nb = "0.1.1"
+version_nb = "0.1.2"
 parser = argparse.ArgumentParser(prog = 'xvg_average', usage='', add_help = False, formatter_class = argparse.RawDescriptionHelpFormatter, description =\
 '''
 **********************************************
@@ -67,9 +67,6 @@ The following python modules are needed :
    
    You must respect the number and position of spaces but note that the above syntax can
    be precessed by any of the symbols defined by the --comments option.
-   
-   If the average is weighted (i.e. the sum of the weights is different than the number
-   of xvg files), standard deviation are not calculated.
    
 
 [ USAGE ]
@@ -282,6 +279,13 @@ def load_xvg():															#DONE
 		#update weight sum
 		weight_sum += files_columns[filename]["weight"]
 
+	#information message if weights have been detected
+	if len(args.xvgfilenames) > 1:
+		print "\n\nWeights used:"
+		for f_index in range(0,len(args.xvgfilenames)):
+			filename = args.xvgfilenames[f_index]
+			print " " + str(files_columns[filename]["weight"]) + " for " + filename
+	
 	return
 
 #=========================================================================================
@@ -447,7 +451,7 @@ def write_xvg():														#DONE
 print "\nReading files..."
 load_xvg()
 
-print "\n\nWriting average file..."
+print "\nWriting average file..."
 calculate_avg()
 write_xvg()
 
